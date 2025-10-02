@@ -4,7 +4,7 @@
 
 ## 구성 요소
 - `@ci/llvm20.1-python3.12.Dockerfile`: 실제 빌드에 사용하는 멀티 스테이지 Dockerfile
-- `ci/build_image.py`: Docker 이미지 한 스테이지를 빌드하는 경량 Python 스크립트
+- `scripts/build_image.py`: Docker 이미지 한 스테이지를 빌드하는 경량 Python 스크립트
 - `scripts/run_build.py`: 런타임/slim 이미지 빌드 및(선택 시) 레지스트리 푸시를 자동화하는 오케스트레이션 스크립트
 - `scripts/download_deps.py`: LLVM/Python 소스 tarball을 자동 다운로드하는 유틸리티
 - `build.config`: tarball 파일명, 기본 태그 등 공통 설정을 정의
@@ -16,7 +16,7 @@
 - Python 3.10 이상이 PATH에 존재 (`python`, `python3`, 혹은 `py` 명령으로 호출 가능)
 - (선택) `deps/` 디렉터리에 다음 파일 준비 (없으면 자동 다운로드)
   - `llvm-project-20.1.8.src.tar.xz`
-  - `Python-3.12.9.tgz`
+  - `Python-3.12.11.tgz`
 
 ## 빠른 시작
 ```bash
@@ -35,19 +35,19 @@ python scripts/run_build.py --push --registry my.registry.local/team
 **참고**: `scripts/run_build.py` 실행 시 LLVM/Python tarball이 없으면 자동으로 다운로드됩니다. 수동 다운로드는 `python scripts/download_deps.py`를 실행하세요.
 
 ## 단일 스테이지 빌드
-특정 타깃만 빌드하려면 `ci/build_image.py`를 직접 사용할 수 있습니다.
+특정 타깃만 빌드하려면 `scripts/build_image.py`를 직접 사용할 수 있습니다.
 
 ```bash
 # 기본(runtime) 이미지 빌드
-python ci/build_image.py \
+python scripts/build_image.py \
   --llvm-src deps/llvm-project-20.1.8.src.tar.xz \
-  --python-src deps/Python-3.12.9.tgz \
+  --python-src deps/Python-3.12.11.tgz \
   --tag llvm20.1-python3.12
 
 # 슬림 이미지 빌드
-python ci/build_image.py \
+python scripts/build_image.py \
   --llvm-src deps/llvm-project-20.1.8.src.tar.xz \
-  --python-src deps/Python-3.12.9.tgz \
+  --python-src deps/Python-3.12.11.tgz \
   --tag llvm20.1-python3.12 --slim
 ```
 
@@ -58,7 +58,7 @@ python ci/build_image.py \
 
 ```ini
 LLVM_TARBALL=llvm-project-20.1.8.src.tar.xz
-PYTHON_TARBALL=Python-3.12.9.tgz
+PYTHON_TARBALL=Python-3.12.11.tgz
 ARTIFACTS_DIR=deps
 BASE_TAG=llvm20.1-python3.12
 REGISTRY=

@@ -37,7 +37,7 @@ RUN set -eux; \
   mkdir -p /tmp/build/llvm && cd /tmp/build/llvm; \
   cmake -G Ninja -S "$LLVM_SRC_DIR/llvm" -B . \
     -DCMAKE_BUILD_TYPE=Release \
-    -DLLVM_ENABLE_PROJECTS='clang;lld' \
+    -DLLVM_ENABLE_PROJECTS='clang;lld;clang-tools-extra' \
     -DLLVM_TARGETS_TO_BUILD='X86;AArch64' \
     -DLLVM_ENABLE_TERMINFO=ON \
     -DLLVM_ENABLE_ASSERTIONS=OFF \
@@ -45,13 +45,12 @@ RUN set -eux; \
     -DLLVM_INCLUDE_TESTS=OFF \
     -DLLVM_INCLUDE_BENCHMARKS=OFF \
     -DLLVM_INCLUDE_EXAMPLES=OFF \
-    -DCLANG_BUILD_TOOLS=OFF \
     -DCMAKE_INSTALL_PREFIX=/opt/llvm-20.1; \
   ninja -j"$(nproc)"; \
   ninja install; \
   # prune non-essential LLVM tools to reduce size (keep core toolchain only)
   bash -lc 'set -e; cd /opt/llvm-20.1/bin; \
-    keep="clang clang++ ld.lld lld-link llvm-ar llvm-ranlib llvm-objdump llvm-objcopy llvm-strip llvm-as llvm-dis llvm-nm"; \
+    keep="clang clang++ ld.lld lld-link llvm-ar llvm-ranlib llvm-objdump llvm-objcopy llvm-strip llvm-as llvm-dis llvm-nm clang-format clang-tidy"; \
     for f in *; do \
       case " $keep " in \
         *" $f "*) : ;; \
@@ -99,7 +98,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libtinfo6 zlib1g libxml2 libedit2 \
     libstdc++6 libgcc-s1 \
     libffi8 libbz2-1.0 libreadline8 libsqlite3-0 xz-utils openssl \
-    gcc g++ make \
+    gcc g++ make cmake ninja-build \
+    git curl p7zip-full zip unzip \
+    pkg-config ccache patch file gdb \
+    libc6-dev libstdc++-14-dev \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/llvm-20.1 /opt/llvm-20.1
@@ -117,7 +119,20 @@ ENV PATH="/opt/llvm-20.1/bin:/opt/python-3.12/bin:${PATH}" \
 WORKDIR /workspace
 
 # Quick verification (kept lightweight)
-RUN /opt/llvm-20.1/bin/clang --version && /opt/python-3.12/bin/python3.12 --version
+RUN /opt/llvm-20.1/bin/clang --version && \
+    /opt/llvm-20.1/bin/clang++ --version && \
+    gcc --version && \
+    g++ --version && \
+    /opt/python-3.12/bin/python3.12 --version
+
+# Test compilation with both compilers
+RUN echo 'int main() { return 0; }' > /tmp/test.c && \
+    gcc /tmp/test.c -o /tmp/test_gcc && \
+    clang /tmp/test.c -o /tmp/test_clang && \
+    echo '#include <iostream>\nint main() { std::cout << "test"; return 0; }' > /tmp/test.cpp && \
+    g++ /tmp/test.cpp -o /tmp/test_gpp && \
+    clang++ /tmp/test.cpp -o /tmp/test_clangpp && \
+    rm -f /tmp/test*
 
 ###############################################
 # Slim runtime stage: smaller base with minimal deps
@@ -132,6 +147,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libstdc++6 libgcc-s1 \
     libffi8 libbz2-1.0 libreadline8 libsqlite3-0 xz-utils libssl3 \
     gcc g++ make cmake ninja-build \
+    git curl p7zip-full zip unzip \
+    pkg-config ccache patch file gdb \
+    libc6-dev libstdc++-12-dev \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/llvm-20.1 /opt/llvm-20.1
@@ -152,4 +170,17 @@ ENV PATH="/opt/llvm-20.1/bin:/opt/python-3.12/bin:${PATH}" \
 
 WORKDIR /workspace
 
-RUN /opt/llvm-20.1/bin/clang --version && /opt/python-3.12/bin/python3.12 --version
+RUN /opt/llvm-20.1/bin/clang --version && \
+    /opt/llvm-20.1/bin/clang++ --version && \
+    gcc --version && \
+    g++ --version && \
+    /opt/python-3.12/bin/python3.12 --version
+
+# Test compilation with both compilers
+RUN echo 'int main() { return 0; }' > /tmp/test.c && \
+    gcc /tmp/test.c -o /tmp/test_gcc && \
+    clang /tmp/test.c -o /tmp/test_clang && \
+    echo '#include <iostream>\nint main() { std::cout << "test"; return 0; }' > /tmp/test.cpp && \
+    g++ /tmp/test.cpp -o /tmp/test_gpp && \
+    clang++ /tmp/test.cpp -o /tmp/test_clangpp && \
+    rm -f /tmp/test*
