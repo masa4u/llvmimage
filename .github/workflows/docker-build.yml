@@ -1,0 +1,71 @@
+name: Docker Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Download LLVM source
+        run: |
+          mkdir -p deps
+          if [ ! -f deps/llvm-project-20.1.8.src.tar.xz ]; then
+            wget -O deps/llvm-project-20.1.8.src.tar.xz \
+              https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/llvm-project-20.1.8.src.tar.xz
+          fi
+
+      - name: Download Python source
+        run: |
+          if [ ! -f deps/Python-3.12.9.tgz ]; then
+            wget -O deps/Python-3.12.9.tgz \
+              https://www.python.org/ftp/python/3.12.9/Python-3.12.9.tgz
+          fi
+
+      - name: Build Docker images
+        run: |
+          python scripts/run_build.py
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: logs/*.log
+          retention-days: 30
+
+      - name: Login to Docker Hub (optional)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+        continue-on-error: true
+
+      - name: Push images (optional)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          if [ -n "${{ secrets.DOCKER_USERNAME }}" ]; then
+            python scripts/run_build.py --push --registry ${{ secrets.DOCKER_REGISTRY || secrets.DOCKER_USERNAME }}
+          fi
+        continue-on-error: true
