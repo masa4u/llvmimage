@@ -131,7 +131,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libtinfo6 zlib1g libxml2 libedit2 \
     libstdc++6 libgcc-s1 \
     libffi8 libbz2-1.0 libreadline8 libsqlite3-0 xz-utils libssl3 \
-    gcc g++ make \
+    gcc g++ make cmake ninja-build \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/llvm-20.1 /opt/llvm-20.1
