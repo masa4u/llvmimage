@@ -37,9 +37,9 @@ jobs:
 
       - name: Download Python source
         run: |
-          if [ ! -f deps/Python-3.12.9.tgz ]; then
-            wget -O deps/Python-3.12.9.tgz \
-              https://www.python.org/ftp/python/3.12.9/Python-3.12.9.tgz
+          if [ ! -f deps/Python-3.12.11.tgz ]; then
+            wget -O deps/Python-3.12.11.tgz \
+              https://www.python.org/ftp/python/3.12.11/Python-3.12.11.tgz
           fi
 
       - name: Build Docker images

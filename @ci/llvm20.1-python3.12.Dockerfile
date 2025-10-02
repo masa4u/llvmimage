@@ -19,9 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Optional local tarball drop-in directory from build context
 COPY deps/ /deps/
 
-# Set default source URLs; override with local paths (e.g., /deps/llvm-project-20.1.0.src.tar.xz)
-ARG LLVM_SRC_URL="/deps/llvm-project-20.1.8.src.tar.xz"
-ARG PYTHON_SRC_URL="/deps/Python-3.12.9.tgz"
+# Set default source URLs; override with local paths via --build-arg
+ARG LLVM_SRC_URL=""
+ARG PYTHON_SRC_URL=""
 
 WORKDIR /tmp/build
 
@@ -93,16 +93,20 @@ FROM ubuntu:24.04 AS runtime
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-# Runtime-only libs to execute clang/llvm and Python
+# Runtime-only libs to execute clang/llvm and Python, plus gcc/g++ for building
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libtinfo6 zlib1g libxml2 libedit2 \
     libstdc++6 libgcc-s1 \
     libffi8 libbz2-1.0 libreadline8 libsqlite3-0 xz-utils openssl \
+    gcc g++ make \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/llvm-20.1 /opt/llvm-20.1
 COPY --from=builder /opt/python-3.12 /opt/python-3.12
+
+# Create python symlink if it doesn't exist
+RUN test -f /opt/python-3.12/bin/python || ln -s /opt/python-3.12/bin/python3 /opt/python-3.12/bin/python
 
 ENV PATH="/opt/llvm-20.1/bin:/opt/python-3.12/bin:${PATH}" \
     CC=clang \
@@ -113,7 +117,7 @@ ENV PATH="/opt/llvm-20.1/bin:/opt/python-3.12/bin:${PATH}" \
 WORKDIR /workspace
 
 # Quick verification (kept lightweight)
-RUN clang --version && python3.12 --version
+RUN /opt/llvm-20.1/bin/clang --version && /opt/python-3.12/bin/python3.12 --version
 
 ###############################################
 # Slim runtime stage: smaller base with minimal deps
@@ -127,6 +131,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libtinfo6 zlib1g libxml2 libedit2 \
     libstdc++6 libgcc-s1 \
     libffi8 libbz2-1.0 libreadline8 libsqlite3-0 xz-utils libssl3 \
+    gcc g++ make \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/llvm-20.1 /opt/llvm-20.1
@@ -136,6 +141,9 @@ COPY --from=builder /opt/python-3.12 /opt/python-3.12
 RUN rm -rf /opt/llvm-20.1/include /opt/llvm-20.1/lib/cmake || true \
     && rm -rf /opt/python-3.12/lib/python3.12/ensurepip || true
 
+# Create python symlink if it doesn't exist
+RUN test -f /opt/python-3.12/bin/python || ln -s /opt/python-3.12/bin/python3 /opt/python-3.12/bin/python
+
 ENV PATH="/opt/llvm-20.1/bin:/opt/python-3.12/bin:${PATH}" \
     CC=clang \
     CXX=clang++ \
@@ -144,4 +152,4 @@ ENV PATH="/opt/llvm-20.1/bin:/opt/python-3.12/bin:${PATH}" \
 
 WORKDIR /workspace
 
-RUN clang --version && python3.12 --version
+RUN /opt/llvm-20.1/bin/clang --version && /opt/python-3.12/bin/python3.12 --version

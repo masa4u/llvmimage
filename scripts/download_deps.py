@@ -67,7 +67,7 @@ def main():
 
     # Get configuration values
     llvm_tarball = config.get("LLVM_TARBALL", "llvm-project-20.1.8.src.tar.xz")
-    python_tarball = config.get("PYTHON_TARBALL", "Python-3.12.9.tgz")
+    python_tarball = config.get("PYTHON_TARBALL", "Python-3.12.11.tgz")
     artifacts_dir = config.get("ARTIFACTS_DIR", "deps")
 
     # Parse versions from tarball names

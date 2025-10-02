@@ -110,7 +110,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         artifacts_path = (repo_root / artifacts_path).resolve()
 
     llvm_spec = resolve("LLVM_TARBALL", args.llvm_tarball, "llvm-project-20.1.8.src.tar.xz")
-    python_spec = resolve("PYTHON_TARBALL", args.python_tarball, "Python-3.12.9.tgz")
+    python_spec = resolve("PYTHON_TARBALL", args.python_tarball, "Python-3.12.11.tgz")
     base_tag = resolve("BASE_TAG", args.tag, "llvm20.1-python3.12")
     registry = resolve("REGISTRY", args.registry, "")
     log_dir_value = resolve("LOG_DIR", args.log_dir, "logs")
