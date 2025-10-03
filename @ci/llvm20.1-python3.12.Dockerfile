@@ -71,12 +71,12 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates wget gnupg \
     libtinfo6 zlib1g libxml2 libedit2 \
-    libstdc++14 libgcc-s1 \
+    libstdc++6 libgcc-s1 \
     libffi8 libbz2-1.0 libreadline8 libsqlite3-0 xz-utils libssl3 \
     gcc g++ make cmake ninja-build \
     git curl p7zip-full zip unzip \
     pkg-config ccache patch file gdb \
-    libc6-dev libstdc++14-dev \
+    libc6-dev libstdc++-14-dev \
   && rm -rf /var/lib/apt/lists/*
 
 # Install LLVM 20 from apt.llvm.org (Trixie repository)
@@ -142,7 +142,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ make cmake ninja-build \
     git curl p7zip-full zip unzip \
     pkg-config ccache patch file gdb \
-    libc6-dev libstdc++-dev \
+    libc6-dev libstdc++-14-dev \
   && rm -rf /var/lib/apt/lists/*
 
 # Install LLVM 20 from apt.llvm.org (Trixie repository)
