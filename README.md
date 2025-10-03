@@ -1,22 +1,23 @@
-# Dockerized LLVM20.1/Python3.12 Toolchain
+# Dockerized LLVM20/Python3.12 Toolchain
 
-이 저장소는 LLVM 20.1.x와 Python 3.12를 포함한 Docker 이미지를 생성하기 위한 스크립트를 제공합니다. 모든 빌드 로직은 Python으로 통합되어 Windows/WSL/Linux 어디서든 동일한 절차로 사용할 수 있습니다.
+이 저장소는 LLVM 20 (apt.llvm.org)와 Python 3.12를 포함한 Docker 이미지를 생성하기 위한 스크립트를 제공합니다. LLVM은 apt.llvm.org 저장소에서 설치되며, Python은 소스에서 빌드됩니다. 모든 빌드 로직은 Python으로 통합되어 Windows/WSL/Linux 어디서든 동일한 절차로 사용할 수 있습니다.
 
 ## 구성 요소
 - `@ci/llvm20.1-python3.12.Dockerfile`: 실제 빌드에 사용하는 멀티 스테이지 Dockerfile
 - `scripts/build_image.py`: Docker 이미지 한 스테이지를 빌드하는 경량 Python 스크립트
 - `scripts/run_build.py`: 런타임/slim 이미지 빌드 및(선택 시) 레지스트리 푸시를 자동화하는 오케스트레이션 스크립트
-- `scripts/download_deps.py`: LLVM/Python 소스 tarball을 자동 다운로드하는 유틸리티
+- `scripts/download_deps.py`: Python 소스 tarball을 자동 다운로드하는 유틸리티
 - `build.config`: tarball 파일명, 기본 태그 등 공통 설정을 정의
-- `deps/`: LLVM/Python 소스 tarball을 저장하는 디렉터리 (빌드 시 자동 복사)
+- `deps/`: Python 소스 tarball을 저장하는 디렉터리 (빌드 시 자동 복사)
 - `.github/workflows/docker-build.yml`: GitHub Actions CI/CD 워크플로우
 
 ## 선행 조건
 - Docker CLI (Docker Desktop 등) 가동 중
 - Python 3.10 이상이 PATH에 존재 (`python`, `python3`, 혹은 `py` 명령으로 호출 가능)
 - (선택) `deps/` 디렉터리에 다음 파일 준비 (없으면 자동 다운로드)
-  - `llvm-project-20.1.8.src.tar.xz`
   - `Python-3.12.11.tgz`
+
+**참고**: LLVM 20은 빌드 시 apt.llvm.org 저장소에서 자동으로 설치됩니다.
 
 ## 빠른 시작
 ```bash
@@ -32,7 +33,7 @@ python scripts/run_build.py --push --registry my.registry.local/team
 
 실행 후 `logs/docker-build-YYYYMMDD-HHmmss.log` 파일이 생성되고, 생성된 태그와 푸시 대상이 콘솔과 로그에 기록됩니다.
 
-**참고**: `scripts/run_build.py` 실행 시 LLVM/Python tarball이 없으면 자동으로 다운로드됩니다. 수동 다운로드는 `python scripts/download_deps.py`를 실행하세요.
+**참고**: `scripts/run_build.py` 실행 시 Python tarball이 없으면 자동으로 다운로드됩니다. 수동 다운로드는 `python scripts/download_deps.py`를 실행하세요.
 
 ## 단일 스테이지 빌드
 특정 타깃만 빌드하려면 `scripts/build_image.py`를 직접 사용할 수 있습니다.
@@ -40,13 +41,11 @@ python scripts/run_build.py --push --registry my.registry.local/team
 ```bash
 # 기본(runtime) 이미지 빌드
 python scripts/build_image.py \
-  --llvm-src deps/llvm-project-20.1.8.src.tar.xz \
   --python-src deps/Python-3.12.11.tgz \
   --tag llvm20.1-python3.12
 
 # 슬림 이미지 빌드
 python scripts/build_image.py \
-  --llvm-src deps/llvm-project-20.1.8.src.tar.xz \
   --python-src deps/Python-3.12.11.tgz \
   --tag llvm20.1-python3.12 --slim
 ```
@@ -57,7 +56,6 @@ python scripts/build_image.py \
 `build.config`에 정의된 값은 `scripts/run_build.py` 실행 시 기본값으로 사용됩니다. 키=값 형식을 유지하면서 필요에 맞게 수정하세요.
 
 ```ini
-LLVM_TARBALL=llvm-project-20.1.8.src.tar.xz
 PYTHON_TARBALL=Python-3.12.11.tgz
 ARTIFACTS_DIR=deps
 BASE_TAG=llvm20.1-python3.12

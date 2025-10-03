@@ -27,16 +27,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Download LLVM source
-        run: |
-          mkdir -p deps
-          if [ ! -f deps/llvm-project-20.1.8.src.tar.xz ]; then
-            wget -O deps/llvm-project-20.1.8.src.tar.xz \
-              https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.8/llvm-project-20.1.8.src.tar.xz
-          fi
-
       - name: Download Python source
         run: |
+          mkdir -p deps
           if [ ! -f deps/Python-3.12.11.tgz ]; then
             wget -O deps/Python-3.12.11.tgz \
               https://www.python.org/ftp/python/3.12.11/Python-3.12.11.tgz

@@ -1,67 +1,61 @@
 # syntax=docker/dockerfile:1.6
 
 ###############################################
-# Builder stage: compile LLVM 20.1 and Python 3.12
+# Builder stage: install LLVM from apt.llvm.org and build Python 3.12
 ###############################################
 FROM ubuntu:24.04 AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-# Build deps (kept minimal; final image won’t include these)
+# Build deps for Python and LLVM repository setup
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl xz-utils \
-    build-essential cmake ninja-build pkg-config \
-    python3 \
-    zlib1g-dev libtinfo-dev libxml2-dev libedit-dev \
-    libffi-dev libssl-dev libbz2-dev libreadline-dev libsqlite3-dev uuid-dev \
+    ca-certificates curl wget gnupg lsb-release software-properties-common \
+    build-essential \
+    zlib1g-dev libffi-dev libssl-dev libbz2-dev libreadline-dev libsqlite3-dev uuid-dev \
   && rm -rf /var/lib/apt/lists/*
+
+# Install LLVM 20 from apt.llvm.org
+RUN wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
+    echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" | tee /etc/apt/sources.list.d/llvm.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      clang-20 \
+      clang++-20 \
+      lld-20 \
+      clang-tools-20 \
+      clang-format-20 \
+      clang-tidy-20 \
+      llvm-20 \
+      llvm-20-dev \
+      llvm-20-runtime && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create symlinks in /opt/llvm-20.1/bin for compatibility
+RUN mkdir -p /opt/llvm-20.1/bin /opt/llvm-20.1/lib && \
+    ln -s /usr/bin/clang-20 /opt/llvm-20.1/bin/clang && \
+    ln -s /usr/bin/clang++-20 /opt/llvm-20.1/bin/clang++ && \
+    ln -s /usr/bin/lld-20 /opt/llvm-20.1/bin/lld && \
+    ln -s /usr/bin/ld.lld-20 /opt/llvm-20.1/bin/ld.lld && \
+    ln -s /usr/bin/lld-link-20 /opt/llvm-20.1/bin/lld-link && \
+    ln -s /usr/bin/llvm-ar-20 /opt/llvm-20.1/bin/llvm-ar && \
+    ln -s /usr/bin/llvm-ranlib-20 /opt/llvm-20.1/bin/llvm-ranlib && \
+    ln -s /usr/bin/llvm-objdump-20 /opt/llvm-20.1/bin/llvm-objdump && \
+    ln -s /usr/bin/llvm-objcopy-20 /opt/llvm-20.1/bin/llvm-objcopy && \
+    ln -s /usr/bin/llvm-strip-20 /opt/llvm-20.1/bin/llvm-strip && \
+    ln -s /usr/bin/llvm-as-20 /opt/llvm-20.1/bin/llvm-as && \
+    ln -s /usr/bin/llvm-dis-20 /opt/llvm-20.1/bin/llvm-dis && \
+    ln -s /usr/bin/llvm-nm-20 /opt/llvm-20.1/bin/llvm-nm && \
+    ln -s /usr/bin/clang-format-20 /opt/llvm-20.1/bin/clang-format && \
+    ln -s /usr/bin/clang-tidy-20 /opt/llvm-20.1/bin/clang-tidy && \
+    ln -s /usr/lib/llvm-20/lib/* /opt/llvm-20.1/lib/ || true
 
 # Optional local tarball drop-in directory from build context
 COPY deps/ /deps/
 
-# Set default source URLs; override with local paths via --build-arg
-ARG LLVM_SRC_URL=""
+# Set default source URL for Python; override with local paths via --build-arg
 ARG PYTHON_SRC_URL=""
 
 WORKDIR /tmp/build
-
-# Fetch + build LLVM (projects: clang, lld; targets: X86, AArch64)
-RUN set -eux; \
-  if echo "$LLVM_SRC_URL" | grep -Eiq '^https?://'; then \
-    curl -L "$LLVM_SRC_URL" -o llvm-src.tar.xz; \
-  else \
-    cp "$LLVM_SRC_URL" llvm-src.tar.xz; \
-  fi; \
-  mkdir -p /tmp/src && tar -xf llvm-src.tar.xz -C /tmp/src; \
-  LLVM_SRC_DIR=$(find /tmp/src -maxdepth 1 -type d -name 'llvm-project-*' -print -quit); \
-  mkdir -p /tmp/build/llvm && cd /tmp/build/llvm; \
-  cmake -G Ninja -S "$LLVM_SRC_DIR/llvm" -B . \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DLLVM_ENABLE_PROJECTS='clang;lld;clang-tools-extra' \
-    -DLLVM_TARGETS_TO_BUILD='X86;AArch64' \
-    -DLLVM_ENABLE_TERMINFO=ON \
-    -DLLVM_ENABLE_ASSERTIONS=OFF \
-    -DLLVM_INCLUDE_DOCS=OFF \
-    -DLLVM_INCLUDE_TESTS=OFF \
-    -DLLVM_INCLUDE_BENCHMARKS=OFF \
-    -DLLVM_INCLUDE_EXAMPLES=OFF \
-    -DCMAKE_INSTALL_PREFIX=/opt/llvm-20.1; \
-  ninja -j"$(nproc)"; \
-  ninja install; \
-  # prune non-essential LLVM tools to reduce size (keep core toolchain only)
-  bash -lc 'set -e; cd /opt/llvm-20.1/bin; \
-    keep="clang clang++ ld.lld lld-link llvm-ar llvm-ranlib llvm-objdump llvm-objcopy llvm-strip llvm-as llvm-dis llvm-nm clang-format clang-tidy"; \
-    for f in *; do \
-      case " $keep " in \
-        *" $f "*) : ;; \
-        *) rm -f "$f" || true ;; \
-      esac; \
-    done'; \
-  # strip and remove static libs to reduce size
-  find /opt/llvm-20.1 -type f -name "*.a" -delete || true; \
-  find /opt/llvm-20.1 -type f -perm -111 -exec strip --strip-unneeded {} + || true; \
-  find /opt/llvm-20.1 -type f -name "*.so*" -exec strip --strip-unneeded {} + || true; \
-  rm -rf /tmp/build/llvm /tmp/src llvm-src.tar.xz
 
 # Fetch + build Python 3.12
 RUN set -eux; \

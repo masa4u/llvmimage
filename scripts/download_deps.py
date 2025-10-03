@@ -66,12 +66,10 @@ def main():
     config = load_config()
 
     # Get configuration values
-    llvm_tarball = config.get("LLVM_TARBALL", "llvm-project-20.1.8.src.tar.xz")
     python_tarball = config.get("PYTHON_TARBALL", "Python-3.12.11.tgz")
     artifacts_dir = config.get("ARTIFACTS_DIR", "deps")
 
-    # Parse versions from tarball names
-    llvm_version = llvm_tarball.replace("llvm-project-", "").replace(".src.tar.xz", "")
+    # Parse version from tarball name
     python_version = python_tarball.replace("Python-", "").replace(".tgz", "")
 
     # Setup paths
@@ -79,21 +77,10 @@ def main():
     deps_dir = repo_root / artifacts_dir
     deps_dir.mkdir(exist_ok=True)
 
-    llvm_path = deps_dir / llvm_tarball
     python_path = deps_dir / python_tarball
 
-    # Download URLs
-    llvm_url = f"https://github.com/llvm/llvm-project/releases/download/llvmorg-{llvm_version}/{llvm_tarball}"
+    # Download URL
     python_url = f"https://www.python.org/ftp/python/{python_version}/{python_tarball}"
-
-    # Check and download LLVM
-    if llvm_path.exists():
-        print(f"✓ LLVM tarball exists: {llvm_path}")
-    else:
-        print(f"✗ LLVM tarball not found: {llvm_path}")
-        if not download_file(llvm_url, llvm_path):
-            print("Failed to download LLVM tarball")
-            sys.exit(1)
 
     # Check and download Python
     if python_path.exists():

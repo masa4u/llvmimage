@@ -29,7 +29,6 @@ def build_image(
     *,
     dockerfile: Path,
     repository_root: Path,
-    llvm_src: str | None,
     python_src: str | None,
     tag: str,
     target: str,
@@ -48,10 +47,6 @@ def build_image(
     deps_dir = repository_root / "deps"
     deps_dir.mkdir(parents=True, exist_ok=True)
 
-    if llvm_src:
-        llvm_path = copy_if_needed(Path(llvm_src), deps_dir)
-        command.extend(["--build-arg", f"LLVM_SRC_URL=/deps/{llvm_path.name}"])
-
     if python_src:
         python_path = copy_if_needed(Path(python_src), deps_dir)
         command.extend(["--build-arg", f"PYTHON_SRC_URL=/deps/{python_path.name}"])
@@ -63,7 +58,6 @@ def build_image(
 
 def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="CI Docker 이미지 빌드 스크립트")
-    parser.add_argument("--llvm-src", dest="llvm_src", default="", help="LLVM 소스 tarball 경로")
     parser.add_argument("--python-src", dest="python_src", default="", help="Python 소스 tarball 경로")
     parser.add_argument("--tag", dest="tag", default="llvm20.1-python3.12", help="생성할 이미지 태그")
     parser.add_argument("--slim", dest="slim", action="store_true", help="slim 타겟 빌드")
@@ -89,7 +83,6 @@ def main(argv: list[str] | None = None) -> int:
         build_image(
             dockerfile=dockerfile,
             repository_root=repo_root,
-            llvm_src=args.llvm_src or None,
             python_src=args.python_src or None,
             tag=tag,
             target=target,

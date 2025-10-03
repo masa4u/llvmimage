@@ -67,7 +67,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Docker 빌드 자동화 스크립트")
     parser.add_argument("--config", default="build.config", help="설정 파일 경로")
     parser.add_argument("--artifacts", help="소스 tarball 이 위치한 디렉터리")
-    parser.add_argument("--llvm-tarball", help="LLVM tarball 파일명 또는 경로")
     parser.add_argument("--python-tarball", help="Python tarball 파일명 또는 경로")
     parser.add_argument("--tag", help="기본 Docker 태그")
     parser.add_argument("--registry", help="푸시할 대상 레지스트리")
@@ -109,7 +108,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not artifacts_path.is_absolute():
         artifacts_path = (repo_root / artifacts_path).resolve()
 
-    llvm_spec = resolve("LLVM_TARBALL", args.llvm_tarball, "llvm-project-20.1.8.src.tar.xz")
     python_spec = resolve("PYTHON_TARBALL", args.python_tarball, "Python-3.12.11.tgz")
     base_tag = resolve("BASE_TAG", args.tag, "llvm20.1-python3.12")
     registry = resolve("REGISTRY", args.registry, "")
@@ -137,19 +135,13 @@ def main(argv: Optional[List[str]] = None) -> int:
             candidate = (artifacts_path / candidate).resolve()
         return candidate
 
-    llvm_src = resolve_tarball(llvm_spec)
     python_src = resolve_tarball(python_spec)
 
-    if not llvm_src.exists():
-        raise FileNotFoundError(f"LLVM tarball 을 찾을 수 없습니다: {llvm_src}")
     if not python_src.exists():
         raise FileNotFoundError(f"Python tarball 을 찾을 수 없습니다: {python_src}")
 
-    llvm_dest = deps_dir / llvm_src.name
     python_dest = deps_dir / python_src.name
 
-    if llvm_src.resolve() != llvm_dest.resolve():
-        shutil.copy2(llvm_src, llvm_dest)
     if python_src.resolve() != python_dest.resolve():
         shutil.copy2(python_src, python_dest)
 
@@ -181,8 +173,6 @@ def main(argv: Optional[List[str]] = None) -> int:
                 "build",
                 "-f",
                 str(dockerfile_path),
-                "--build-arg",
-                f"LLVM_SRC_URL=/deps/{llvm_dest.name}",
                 "--build-arg",
                 f"PYTHON_SRC_URL=/deps/{python_dest.name}",
                 "--target",
