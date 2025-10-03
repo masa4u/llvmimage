@@ -51,11 +51,11 @@ def download_file(url, dest_path):
                               end='', flush=True)
 
             print()  # New line after progress
-            print(f"✓ Downloaded successfully")
+            print(f"[OK] Downloaded successfully")
             return True
 
     except Exception as e:
-        print(f"\n✗ Download failed: {e}")
+        print(f"\n[ERROR] Download failed: {e}")
         if dest_path.exists():
             dest_path.unlink()
         return False
@@ -84,14 +84,14 @@ def main():
 
     # Check and download Python
     if python_path.exists():
-        print(f"✓ Python tarball exists: {python_path}")
+        print(f"[OK] Python tarball exists: {python_path}")
     else:
-        print(f"✗ Python tarball not found: {python_path}")
+        print(f"[INFO] Python tarball not found: {python_path}")
         if not download_file(python_url, python_path):
             print("Failed to download Python tarball")
             sys.exit(1)
 
-    print("\n✓ All dependencies ready")
+    print("\n[OK] All dependencies ready")
     return 0
 
 

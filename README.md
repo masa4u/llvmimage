@@ -72,6 +72,40 @@ SLIM=true
 - **Runtime**: `masa4u/trixie-llvm20-python3.12`
 - **Slim**: `masa4u/trixie-llvm20-python3.12-slim`
 
+## 이미지 크기 최적화
+
+이 프로젝트는 Debian slim 이미지 생성을 위한 일반적인 방법론을 적용하여 이미지 크기를 최소화합니다:
+
+### 적용된 최적화 기법
+
+1. **레이어 통합**
+   - 여러 RUN 명령을 하나로 통합하여 레이어 수 최소화
+   - 패키지 설치와 cleanup을 동일 레이어에서 수행
+
+2. **동일 레이어 내 정리**
+   - `apt-get clean`, `/var/lib/apt/lists/*` 삭제를 설치 명령과 동일 RUN에서 실행
+   - Python 빌드 후 임시 파일 삭제를 동일 레이어에서 수행
+
+3. **불필요한 파일 제거**
+   - 문서: `/usr/share/doc`, `/usr/share/man`, `/usr/share/info`, `/usr/share/locale`
+   - 캐시: `/var/cache/apt`, `/tmp`, `/var/tmp`
+   - Python: `__pycache__`, `*.pyc`, `*.pyo`, test 디렉토리
+
+4. **Slim 단계 패키지 최소화**
+   - LLVM: clang-20, clang++-20, lld-20, llvm-20-runtime만 설치 (tools/format/tidy 제외)
+   - 필수 빌드 도구: gcc, g++, make, cmake, ninja-build, git, p7zip-full, zip, unzip, pkg-config
+   - 개발 헤더 제거: libc6-dev, libstdc++-14-dev 등
+   - 추가 도구 제거: curl, gdb, ccache, patch, file 등
+
+5. **바이너리 최적화**
+   - `strip --strip-unneeded`로 Python 바이너리 및 .so 파일 크기 축소
+
+### 스테이지별 특징
+
+- **Builder**: LLVM dev 패키지 포함, Python 소스 빌드 환경
+- **Runtime**: 전체 개발 도구 및 LLVM toolchain (clang-tools, clang-format, clang-tidy 포함)
+- **Slim**: 필수 빌드 도구 (gcc/g++/clang/clang++/cmake/ninja/git/7zip/zip/pkg-config) + 최소 런타임
+
 ## 문제 해결
 - `docker 명령을 찾을 수 없습니다` 메시지가 나오면 Docker Desktop이 실행 중인지, CLI가 PATH에 있는지 확인합니다.
 - tarball 관련 오류가 발생하면 `deps/`에 파일이 존재하는지, 파일명이 설정과 일치하는지 확인합니다.
