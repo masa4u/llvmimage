@@ -1,6 +1,6 @@
 # Dockerized LLVM20/Python3.12 Toolchain
 
-이 저장소는 LLVM 20 (apt.llvm.org)와 Python 3.12를 포함한 Docker 이미지를 생성하기 위한 스크립트를 제공합니다. LLVM은 apt.llvm.org 저장소에서 설치되며, Python은 소스에서 빌드됩니다. 모든 빌드 로직은 Python으로 통합되어 Windows/WSL/Linux 어디서든 동일한 절차로 사용할 수 있습니다.
+이 저장소는 LLVM 20 (apt.llvm.org)와 Python 3.12를 포함한 Docker 이미지를 생성하기 위한 스크립트를 제공합니다. Debian Trixie (testing) 기반으로 LLVM은 apt.llvm.org 저장소에서 설치되며, Python은 소스에서 빌드됩니다. 모든 빌드 로직은 Python으로 통합되어 Windows/WSL/Linux 어디서든 동일한 절차로 사용할 수 있습니다.
 
 ## 구성 요소
 - `@ci/llvm20.1-python3.12.Dockerfile`: 실제 빌드에 사용하는 멀티 스테이지 Dockerfile
@@ -17,7 +17,7 @@
 - (선택) `deps/` 디렉터리에 다음 파일 준비 (없으면 자동 다운로드)
   - `Python-3.12.11.tgz`
 
-**참고**: LLVM 20은 빌드 시 apt.llvm.org 저장소에서 자동으로 설치됩니다.
+**참고**: LLVM 20은 빌드 시 apt.llvm.org 저장소에서 자동으로 설치됩니다 (Debian Trixie 호환).
 
 ## 빠른 시작
 ```bash

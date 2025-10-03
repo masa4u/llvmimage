@@ -3,20 +3,20 @@
 ###############################################
 # Builder stage: install LLVM from apt.llvm.org and build Python 3.12
 ###############################################
-FROM ubuntu:24.04 AS builder
+FROM debian:trixie AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Build deps for Python and LLVM repository setup
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl wget gnupg lsb-release software-properties-common \
+    ca-certificates curl wget gnupg lsb-release \
     build-essential \
     zlib1g-dev libffi-dev libssl-dev libbz2-dev libreadline-dev libsqlite3-dev uuid-dev \
   && rm -rf /var/lib/apt/lists/*
 
-# Install LLVM 20 from apt.llvm.org
+# Install LLVM 20 from apt.llvm.org (Trixie repository)
 RUN wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
-    echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" | tee /etc/apt/sources.list.d/llvm.list && \
+    echo "deb http://apt.llvm.org/trixie/ llvm-toolchain-trixie-20 main" | tee /etc/apt/sources.list.d/llvm.list && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
       clang-20 \
@@ -29,25 +29,6 @@ RUN wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.
       llvm-20-dev \
       llvm-20-runtime && \
     rm -rf /var/lib/apt/lists/*
-
-# Create symlinks in /opt/llvm-20.1/bin for compatibility
-RUN mkdir -p /opt/llvm-20.1/bin /opt/llvm-20.1/lib && \
-    ln -s /usr/bin/clang-20 /opt/llvm-20.1/bin/clang && \
-    ln -s /usr/bin/clang++-20 /opt/llvm-20.1/bin/clang++ && \
-    ln -s /usr/bin/lld-20 /opt/llvm-20.1/bin/lld && \
-    ln -s /usr/bin/ld.lld-20 /opt/llvm-20.1/bin/ld.lld && \
-    ln -s /usr/bin/lld-link-20 /opt/llvm-20.1/bin/lld-link && \
-    ln -s /usr/bin/llvm-ar-20 /opt/llvm-20.1/bin/llvm-ar && \
-    ln -s /usr/bin/llvm-ranlib-20 /opt/llvm-20.1/bin/llvm-ranlib && \
-    ln -s /usr/bin/llvm-objdump-20 /opt/llvm-20.1/bin/llvm-objdump && \
-    ln -s /usr/bin/llvm-objcopy-20 /opt/llvm-20.1/bin/llvm-objcopy && \
-    ln -s /usr/bin/llvm-strip-20 /opt/llvm-20.1/bin/llvm-strip && \
-    ln -s /usr/bin/llvm-as-20 /opt/llvm-20.1/bin/llvm-as && \
-    ln -s /usr/bin/llvm-dis-20 /opt/llvm-20.1/bin/llvm-dis && \
-    ln -s /usr/bin/llvm-nm-20 /opt/llvm-20.1/bin/llvm-nm && \
-    ln -s /usr/bin/clang-format-20 /opt/llvm-20.1/bin/clang-format && \
-    ln -s /usr/bin/clang-tidy-20 /opt/llvm-20.1/bin/clang-tidy && \
-    ln -s /usr/lib/llvm-20/lib/* /opt/llvm-20.1/lib/ || true
 
 # Optional local tarball drop-in directory from build context
 COPY deps/ /deps/
@@ -82,39 +63,57 @@ RUN set -eux; \
 ###############################################
 # Runtime stage: minimal tools only
 ###############################################
-FROM ubuntu:24.04 AS runtime
+FROM debian:trixie AS runtime
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Runtime-only libs to execute clang/llvm and Python, plus gcc/g++ for building
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
+    ca-certificates wget gnupg \
     libtinfo6 zlib1g libxml2 libedit2 \
     libstdc++6 libgcc-s1 \
-    libffi8 libbz2-1.0 libreadline8 libsqlite3-0 xz-utils openssl \
+    libffi8 libbz2-1.0 libreadline8 libsqlite3-0 xz-utils libssl3 \
     gcc g++ make cmake ninja-build \
     git curl p7zip-full zip unzip \
     pkg-config ccache patch file gdb \
-    libc6-dev libstdc++-14-dev \
+    libc6-dev libstdc++-dev \
   && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /opt/llvm-20.1 /opt/llvm-20.1
+# Install LLVM 20 from apt.llvm.org (Trixie repository)
+RUN wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
+    echo "deb http://apt.llvm.org/trixie/ llvm-toolchain-trixie-20 main" | tee /etc/apt/sources.list.d/llvm.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      clang-20 \
+      clang++-20 \
+      lld-20 \
+      clang-tools-20 \
+      clang-format-20 \
+      clang-tidy-20 \
+      llvm-20 \
+      llvm-20-runtime && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /opt/python-3.12 /opt/python-3.12
 
 # Create python symlink if it doesn't exist
 RUN test -f /opt/python-3.12/bin/python || ln -s /opt/python-3.12/bin/python3 /opt/python-3.12/bin/python
 
-ENV PATH="/opt/llvm-20.1/bin:/opt/python-3.12/bin:${PATH}" \
+# Create versioned symlinks for clang/clang++ to unversioned names
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100 && \
+    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100
+
+ENV PATH="/opt/python-3.12/bin:${PATH}" \
     CC=clang \
     CXX=clang++ \
     PYTHONUNBUFFERED=1 \
-    LD_LIBRARY_PATH="/opt/python-3.12/lib:/opt/llvm-20.1/lib:${LD_LIBRARY_PATH}"
+    LD_LIBRARY_PATH="/opt/python-3.12/lib:/usr/lib/llvm-20/lib:${LD_LIBRARY_PATH}"
 
 WORKDIR /workspace
 
 # Quick verification (kept lightweight)
-RUN /opt/llvm-20.1/bin/clang --version && \
-    /opt/llvm-20.1/bin/clang++ --version && \
+RUN clang --version && \
+    clang++ --version && \
     gcc --version && \
     g++ --version && \
     /opt/python-3.12/bin/python3.12 --version
@@ -131,41 +130,58 @@ RUN echo 'int main() { return 0; }' > /tmp/test.c && \
 ###############################################
 # Slim runtime stage: smaller base with minimal deps
 ###############################################
-FROM debian:12-slim AS slim
+FROM debian:trixie-slim AS slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
+    ca-certificates wget gnupg \
     libtinfo6 zlib1g libxml2 libedit2 \
     libstdc++6 libgcc-s1 \
     libffi8 libbz2-1.0 libreadline8 libsqlite3-0 xz-utils libssl3 \
     gcc g++ make cmake ninja-build \
     git curl p7zip-full zip unzip \
     pkg-config ccache patch file gdb \
-    libc6-dev libstdc++-12-dev \
+    libc6-dev libstdc++-dev \
   && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /opt/llvm-20.1 /opt/llvm-20.1
+# Install LLVM 20 from apt.llvm.org (Trixie repository)
+RUN wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
+    echo "deb http://apt.llvm.org/trixie/ llvm-toolchain-trixie-20 main" | tee /etc/apt/sources.list.d/llvm.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      clang-20 \
+      clang++-20 \
+      lld-20 \
+      clang-tools-20 \
+      clang-format-20 \
+      clang-tidy-20 \
+      llvm-20 \
+      llvm-20-runtime && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /opt/python-3.12 /opt/python-3.12
 
-# Further prune headers and CMake metadata to shrink size
-RUN rm -rf /opt/llvm-20.1/include /opt/llvm-20.1/lib/cmake || true \
-    && rm -rf /opt/python-3.12/lib/python3.12/ensurepip || true
+# Further prune Python ensurepip to shrink size
+RUN rm -rf /opt/python-3.12/lib/python3.12/ensurepip || true
 
 # Create python symlink if it doesn't exist
 RUN test -f /opt/python-3.12/bin/python || ln -s /opt/python-3.12/bin/python3 /opt/python-3.12/bin/python
 
-ENV PATH="/opt/llvm-20.1/bin:/opt/python-3.12/bin:${PATH}" \
+# Create versioned symlinks for clang/clang++ to unversioned names
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100 && \
+    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100
+
+ENV PATH="/opt/python-3.12/bin:${PATH}" \
     CC=clang \
     CXX=clang++ \
     PYTHONUNBUFFERED=1 \
-    LD_LIBRARY_PATH="/opt/python-3.12/lib:/opt/llvm-20.1/lib:${LD_LIBRARY_PATH}"
+    LD_LIBRARY_PATH="/opt/python-3.12/lib:/usr/lib/llvm-20/lib:${LD_LIBRARY_PATH}"
 
 WORKDIR /workspace
 
-RUN /opt/llvm-20.1/bin/clang --version && \
-    /opt/llvm-20.1/bin/clang++ --version && \
+RUN clang --version && \
+    clang++ --version && \
     gcc --version && \
     g++ --version && \
     /opt/python-3.12/bin/python3.12 --version
