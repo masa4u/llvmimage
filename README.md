@@ -27,8 +27,11 @@ python scripts/run_build.py
 # slim 이미지를 제외하고 빌드
 python scripts/run_build.py --no-slim
 
+# 빌드 후 Docker Hub에 푸시 (build.config의 DOCKER_USERNAME 사용)
+python scripts/run_build.py --push
+
 # 빌드 후 사설 레지스트리로 푸시
-python scripts/run_build.py --push --registry my.registry.local/team
+python scripts/run_build.py --push --registry my.registry.local
 ```
 
 실행 후 `logs/docker-build-YYYYMMDD-HHmmss.log` 파일이 생성되고, 생성된 태그와 푸시 대상이 콘솔과 로그에 기록됩니다.
@@ -56,13 +59,18 @@ python scripts/build_image.py \
 `build.config`에 정의된 값은 `scripts/run_build.py` 실행 시 기본값으로 사용됩니다. 키=값 형식을 유지하면서 필요에 맞게 수정하세요.
 
 ```ini
+DOCKER_USERNAME=masa4u
+IMAGE_NAME=trixie-llvm20-python3.12
 PYTHON_TARBALL=Python-3.12.11.tgz
 ARTIFACTS_DIR=deps
-BASE_TAG=llvm20.1-python3.12
 REGISTRY=
 PUSH=false
 SLIM=true
 ```
+
+생성되는 Docker 이미지 태그:
+- **Runtime**: `masa4u/trixie-llvm20-python3.12`
+- **Slim**: `masa4u/trixie-llvm20-python3.12-slim`
 
 ## 문제 해결
 - `docker 명령을 찾을 수 없습니다` 메시지가 나오면 Docker Desktop이 실행 중인지, CLI가 PATH에 있는지 확인합니다.

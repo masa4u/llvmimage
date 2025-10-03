@@ -109,7 +109,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         artifacts_path = (repo_root / artifacts_path).resolve()
 
     python_spec = resolve("PYTHON_TARBALL", args.python_tarball, "Python-3.12.11.tgz")
-    base_tag = resolve("BASE_TAG", args.tag, "llvm20.1-python3.12")
+
+    # Build tag from DOCKER_USERNAME and IMAGE_NAME
+    docker_username = resolve("DOCKER_USERNAME", None, "")
+    image_name = resolve("IMAGE_NAME", None, "trixie-llvm20-python3.12")
+
+    if args.tag:
+        base_tag = args.tag
+    elif docker_username:
+        base_tag = f"{docker_username}/{image_name}"
+    else:
+        base_tag = image_name
+
     registry = resolve("REGISTRY", args.registry, "")
     log_dir_value = resolve("LOG_DIR", args.log_dir, "logs")
 
