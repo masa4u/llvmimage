@@ -20,10 +20,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       clang-20 clang++-20 lld-20 \
       clang-tools-20 clang-format-20 clang-tidy-20 \
       llvm-20 llvm-20-dev llvm-20-runtime \
-      libclang-rt-20-dev libclang-rt-20 \
-      clang-20-extra \
+      libclang-rt-20-dev libclang-rt-20-dev-dbgsym \
       llvm-20-tools llvm-20-libs \
-      lldb-20-tools \
+      lldb-20 lldb-20-dbgsym \
       clangd-20 \
       valgrind \
   # Cleanup in same layer
