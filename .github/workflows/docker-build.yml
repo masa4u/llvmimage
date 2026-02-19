@@ -1,15 +1,22 @@
-name: Docker Build
+name: Docker Build (Debian Trixie) - DISABLED
 
+# NOTE: Disabled in favor of AlmaLinux 9.4 build (docker-build-almalinux.yml)
+# on:
+#   push:
+#     branches:
+#       - main
+#       - master
+#   pull_request:
+#     branches:
+#       - main
+#       - master
+#   workflow_dispatch:
 on:
-  push:
-    branches:
-      - main
-      - master
-  pull_request:
-    branches:
-      - main
-      - master
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "yes" to run legacy Trixie build'
+        required: true
 
 jobs:
   build:

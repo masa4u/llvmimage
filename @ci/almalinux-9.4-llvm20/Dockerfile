@@ -2,21 +2,22 @@ FROM almalinux:9.4
 
 ENV PATH="/usr/lib64/ccache:${PATH}"
 
-# 1) EPEL + CRB 활성화
+# 1) EPEL + CRB 활성화 + 패키지 설치
 RUN set -eux; \
     dnf install -y epel-release; \
-    dnf config-manager --set-enabled crb
-
-# 2) Python 3.12 (AppStream) + 빌드 도구 + 유틸
-RUN set -eux; \
+    dnf config-manager --set-enabled crb; \
     dnf install -y --allowerasing \
       python3.12 python3.12-devel python3.12-pip \
       gcc gcc-c++ make cmake ninja-build pkgconfig ccache \
       patch file gdb valgrind \
       git curl wget tar xz p7zip p7zip-plugins zip unzip; \
     alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1; \
+    # 정리: dnf 캐시 + docs/man/locale
     dnf clean all; \
-    rm -rf /var/cache/dnf
+    rm -rf /var/cache/dnf /var/cache/yum \
+           /usr/share/doc/* /usr/share/man/* \
+           /usr/share/info/* /usr/share/locale/* \
+           /var/log/dnf* /var/log/yum* /tmp/*
 
 # 3) LLVM 20 사전 빌드 바이너리 설치
 #    NOTE: glibc 호환 문제 발생 시 LLVM 소스 빌드로 전환 필요
@@ -27,6 +28,11 @@ RUN set -eux; \
     tar xf "LLVM-${LLVM_VERSION}-Linux-X64.tar.xz"; \
     cp -a LLVM-${LLVM_VERSION}-Linux-X64/* /usr/local/; \
     rm -rf /tmp/LLVM-*; \
+    # LLVM 불필요 파일 정리 (static libs, docs, examples)
+    rm -rf /usr/local/share/doc /usr/local/share/man \
+           /usr/local/share/clang/clang-doc-default-stylesheet.css \
+           /usr/local/share/clang/clang-format-sublime.py \
+           /usr/local/lib/*.a; \
     ldconfig; \
     # 버전 접미사 심링크 생성 (clang → clang-20 등)
     for bin in clang clang++ clang-format clang-tidy lldb lld; do \
