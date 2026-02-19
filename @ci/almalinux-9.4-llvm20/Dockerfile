@@ -12,7 +12,7 @@ RUN set -eux; \
     dnf install -y --allowerasing \
       python3.12 python3.12-devel python3.12-pip \
       gcc gcc-c++ make cmake ninja-build pkgconfig ccache \
-      patch file gdb \
+      patch file gdb valgrind \
       git curl wget tar xz p7zip p7zip-plugins zip unzip; \
     alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1; \
     dnf clean all; \
@@ -79,7 +79,7 @@ RUN set -eux; \
     use-compiler clang; \
     rm -f test.c testc test.cpp testcpp
 
-# 6) 버전 확인
+# 6) 버전 확인 (컴파일러 + coverage/leak 도구)
 RUN set -eux; \
     python3 --version; \
     cc --version; \
@@ -87,4 +87,7 @@ RUN set -eux; \
     cmake --version; \
     ninja --version; \
     git --version; \
-    clang-format-20 --version
+    clang-format-20 --version; \
+    valgrind --version; \
+    llvm-cov --version; \
+    llvm-profdata --version
