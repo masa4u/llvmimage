@@ -9,7 +9,7 @@ RUN set -eux; \
 
 # 2) Python 3.12 (AppStream) + 빌드 도구 + 유틸
 RUN set -eux; \
-    dnf install -y \
+    dnf install -y --allowerasing \
       python3.12 python3.12-devel python3.12-pip \
       gcc gcc-c++ make cmake ninja-build pkgconfig ccache \
       patch file gdb \
