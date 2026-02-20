@@ -189,6 +189,12 @@ RUN set -eux; \
 
 # 6) WSL 설정 + dev 유저 생성 (sudo, zsh 기본 셸)
 RUN set -eux; \
+    # 시스템 전역 환경변수 (WSL1에서 Docker ENV가 전달되지 않으므로 필요)
+    printf 'export PATH="/opt/llvm/bin:/usr/local/bin:${PATH}"\nexport LD_LIBRARY_PATH="/opt/llvm/lib"\n' \
+      > /etc/profile.d/llvm.sh; \
+    chmod 644 /etc/profile.d/llvm.sh; \
+    # zsh 전역 설정 (zsh는 /etc/profile.d/ 를 자동 로드하지 않음)
+    printf 'source /etc/profile.d/llvm.sh\n' >> /etc/zshenv; \
     # wsl.conf — WSL1에서 기본 유저를 dev로 설정
     printf '[user]\ndefault=dev\n' > /etc/wsl.conf; \
     # dev 유저 생성 + sudo 권한 + zsh 기본 셸
@@ -199,32 +205,53 @@ RUN set -eux; \
 # 7) WSL1 PIE 호환 패치 스크립트 (필요시 수동 실행)
 #    WSL1 커널(4.4.0)이 PIE 바이너리를 직접 실행 못 하는 문제 우회
 #    사용법: sudo /root/patch_wsl.sh
-RUN printf '%s\n' \
-      '#!/bin/bash' \
-      'set -euo pipefail' \
-      'echo "=== WSL1 PIE binary patch ==="' \
-      'echo "LLVM PIE 바이너리를 동적 링커 래퍼로 교체합니다."' \
-      'mkdir -p /opt/llvm/libexec' \
-      'patched=0' \
-      'for f in /opt/llvm/bin/*; do' \
-      '  [ -f "$f" ] && [ ! -L "$f" ] || continue' \
-      '  head -c4 "$f" | grep -q ELF || continue' \
-      '  base=$(basename "$f")' \
-      '  mv "$f" "/opt/llvm/libexec/$base"' \
-      '  printf "#!/bin/sh\nexec /lib64/ld-linux-x86-64.so.2 /opt/llvm/libexec/%s \"\$@\"\n" "$base" > "$f"' \
-      '  chmod +x "$f"' \
-      '  patched=$((patched+1))' \
-      '  echo "  patched: $base"' \
-      'done' \
-      'echo ""' \
-      '# clang resource directory 심링크 생성' \
-      '# 동적 링커 경유 시 clang이 /usr/lib/clang/ 에서 헤더를 찾음' \
-      'if [ -d /opt/llvm/lib/clang ] && [ ! -e /usr/lib/clang ]; then' \
-      '  ln -s /opt/llvm/lib/clang /usr/lib/clang' \
-      '  echo "  symlink: /usr/lib/clang -> /opt/llvm/lib/clang"' \
-      'fi' \
-      'echo ""' \
-      'echo "완료: ${patched}개 바이너리 패치됨"' \
-      'echo "clang --version 으로 확인하세요."' \
-    > /root/patch_wsl.sh; \
+RUN cat > /root/patch_wsl.sh << 'PATCH_EOF'
+#!/bin/bash
+set -euo pipefail
+echo "=== WSL1 PIE binary patch ==="
+echo "LLVM PIE 바이너리를 동적 링커 래퍼로 교체합니다."
+mkdir -p /opt/llvm/libexec
+patched=0
+
+# Step 1: 실제 ELF 바이너리를 libexec/로 이동 + 래퍼 생성
+for f in /opt/llvm/bin/*; do
+  [ -f "$f" ] && [ ! -L "$f" ] || continue
+  head -c4 "$f" | grep -q ELF || continue
+  base=$(basename "$f")
+  mv "$f" "/opt/llvm/libexec/$base"
+  printf '#!/bin/sh\nexec /lib64/ld-linux-x86-64.so.2 /opt/llvm/libexec/%s "$@"\n' "$base" > "$f"
+  chmod +x "$f"
+  patched=$((patched+1))
+  echo "  patched: $base"
+done
+
+# Step 2: 심링크를 개별 래퍼로 교체 (clang++ 등 argv[0] 보존)
+#   clang은 argv[0]에 "++"가 포함되어야 C++ 모드로 동작
+for f in /opt/llvm/bin/*; do
+  [ -L "$f" ] || continue
+  target=$(readlink "$f")
+  base=$(basename "$f")
+  # libexec/ 에 대응하는 심링크 생성 (없으면)
+  if [ -e "/opt/llvm/libexec/$target" ] && [ ! -e "/opt/llvm/libexec/$base" ]; then
+    ln -s "$target" "/opt/llvm/libexec/$base"
+  fi
+  # bin/ 의 심링크를 래퍼 스크립트로 교체
+  rm "$f"
+  printf '#!/bin/sh\nexec /lib64/ld-linux-x86-64.so.2 /opt/llvm/libexec/%s "$@"\n' "$base" > "$f"
+  chmod +x "$f"
+  patched=$((patched+1))
+  echo "  patched: $base (symlink -> $target)"
+done
+
+# Step 3: clang resource directory 심링크
+# 동적 링커 경유 시 clang이 /usr/lib/clang/ 에서 헤더를 찾음
+if [ -d /opt/llvm/lib/clang ] && [ ! -e /usr/lib/clang ]; then
+  ln -s /opt/llvm/lib/clang /usr/lib/clang
+  echo "  symlink: /usr/lib/clang -> /opt/llvm/lib/clang"
+fi
+
+echo ""
+echo "완료: ${patched}개 바이너리 패치됨"
+echo "clang++ --version 으로 확인하세요."
+PATCH_EOF
     chmod +x /root/patch_wsl.sh
