@@ -216,6 +216,15 @@ RUN printf '%s\n' \
       '  patched=$((patched+1))' \
       '  echo "  patched: $base"' \
       'done' \
+      'echo ""' \
+      '# clang resource directory 심링크 생성' \
+      '# 동적 링커 경유 시 clang이 /usr/lib/clang/ 에서 헤더를 찾음' \
+      'if [ -d /opt/llvm/lib/clang ] && [ ! -e /usr/lib/clang ]; then' \
+      '  ln -s /opt/llvm/lib/clang /usr/lib/clang' \
+      '  echo "  symlink: /usr/lib/clang -> /opt/llvm/lib/clang"' \
+      'fi' \
+      'echo ""' \
       'echo "완료: ${patched}개 바이너리 패치됨"' \
+      'echo "clang --version 으로 확인하세요."' \
     > /root/patch_wsl.sh; \
     chmod +x /root/patch_wsl.sh
