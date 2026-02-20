@@ -89,7 +89,7 @@ RUN set -eux; \
     dnf config-manager --set-enabled crb; \
     dnf install -y --allowerasing --setopt=install_weak_deps=False \
       python3.12 python3.12-pip \
-      gcc gcc-c++ make cmake ninja-build pkgconfig \
+      gcc gcc-c++ make ninja-build pkgconfig \
       patch file gdb valgrind \
       git curl tar xz zip unzip \
       sudo zsh vim; \
@@ -112,7 +112,15 @@ RUN set -eux; \
     strip --strip-unneeded /usr/bin/gcc /usr/bin/g++ /usr/libexec/gcc/x86_64-redhat-linux/11/cc1 /usr/libexec/gcc/x86_64-redhat-linux/11/cc1plus 2>/dev/null || true; \
     find /usr/lib/gcc /usr/lib64 -name '*.so' -exec strip --strip-unneeded {} + 2>/dev/null || true
 
-# 2) Stage 1에서 정리된 LLVM 복사
+# 2) cmake 3.30.1 프리빌트 설치 (dnf 버전은 3.26.x로 오래됨)
+ARG CMAKE_VERSION=3.30.1
+RUN set -eux; \
+    curl -fsSL "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz" \
+      | tar xz --strip-components=1 -C /usr/local; \
+    rm -rf /usr/local/doc /usr/local/man; \
+    cmake --version
+
+# 3) Stage 1에서 정리된 LLVM 복사
 COPY --from=llvm-prep /opt/llvm /opt/llvm
 
 RUN set -eux; \
