@@ -80,7 +80,7 @@ RUN set -eux; \
 # ============================================================
 FROM almalinux:9.4
 
-ENV PATH="/usr/lib64/ccache:/opt/llvm/bin:${PATH}"
+ENV PATH="/opt/llvm/bin:${PATH}"
 ENV LD_LIBRARY_PATH="/opt/llvm/lib"
 
 # 1) EPEL + CRB 활성화 + 패키지 설치
@@ -89,9 +89,10 @@ RUN set -eux; \
     dnf config-manager --set-enabled crb; \
     dnf install -y --allowerasing --setopt=install_weak_deps=False \
       python3.12 python3.12-pip \
-      gcc gcc-c++ make cmake ninja-build pkgconfig ccache \
+      gcc gcc-c++ make cmake ninja-build pkgconfig \
       patch file gdb valgrind \
-      git curl tar xz zip unzip; \
+      git curl tar xz zip unzip \
+      sudo zsh vim; \
     alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1; \
     # 정리: dnf 캐시 + docs/man/locale
     dnf clean all; \
@@ -129,13 +130,7 @@ RUN set -eux; \
     alternatives --install /usr/bin/cc cc /usr/bin/gcc 80 \
       --slave /usr/bin/c++ c++ /usr/bin/g++; \
     alternatives --install /usr/bin/cc cc /opt/llvm/bin/clang-20 100 \
-      --slave /usr/bin/c++ c++ /opt/llvm/bin/clang++-20; \
-    # ccache 심링크
-    mkdir -p /usr/lib64/ccache; \
-    ln -sf /usr/bin/ccache /usr/lib64/ccache/clang; \
-    ln -sf /usr/bin/ccache /usr/lib64/ccache/clang++; \
-    ln -sf /usr/bin/ccache /usr/lib64/ccache/gcc; \
-    ln -sf /usr/bin/ccache /usr/lib64/ccache/g++
+      --slave /usr/bin/c++ c++ /opt/llvm/bin/clang++-20
 
 WORKDIR /workspace
 
@@ -183,3 +178,12 @@ RUN set -eux; \
     valgrind --version; \
     llvm-cov --version; \
     llvm-profdata --version
+
+# 6) WSL 설정 + dev 유저 생성 (sudo, zsh 기본 셸)
+RUN set -eux; \
+    # wsl.conf — WSL1에서 기본 유저를 dev로 설정
+    printf '[user]\ndefault=dev\n' > /etc/wsl.conf; \
+    # dev 유저 생성 + sudo 권한 + zsh 기본 셸
+    useradd -m -s /bin/zsh dev; \
+    echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev; \
+    chmod 440 /etc/sudoers.d/dev
