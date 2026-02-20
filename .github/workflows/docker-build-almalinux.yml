@@ -32,6 +32,10 @@ jobs:
         run: |
           docker build -t almalinux94-llvm20-py312 @ci/almalinux-9.4-llvm20/
 
+      - name: Show image size
+        run: |
+          docker images almalinux94-llvm20-py312 --format "{{.Repository}}:{{.Tag}} — {{.Size}}"
+
       - name: Login to Docker Hub (optional)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3

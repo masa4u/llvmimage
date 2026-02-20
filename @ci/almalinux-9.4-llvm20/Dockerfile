@@ -100,6 +100,8 @@ RUN set -eux; \
         && ln -s "$bin" "/opt/llvm/bin/${bin}-20" || true; \
     done; \
     # alternatives: gcc(80) / clang(100, 기본)
+    # gcc-c++ 패키지가 /usr/bin/c++을 실제 파일로 설치하므로 심링크로 교체
+    rm -f /usr/bin/c++; \
     alternatives --install /usr/bin/cc cc /usr/bin/gcc 80 \
       --slave /usr/bin/c++ c++ /usr/bin/g++; \
     alternatives --install /usr/bin/cc cc /opt/llvm/bin/clang-20 100 \
