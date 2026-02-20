@@ -29,17 +29,30 @@ RUN set -eux; \
     # 3) cmake 설정 파일 삭제
     rm -rf /opt/llvm/lib/cmake; \
     \
-    # 4) share/ 전체 삭제 (문서·매뉴얼·기타 모두)
-    rm -rf /opt/llvm/share; \
-    rm -rf /opt/llvm/libexec; \
+    # 4) share/ · libexec/ 전체 삭제
+    rm -rf /opt/llvm/share /opt/llvm/libexec; \
     \
-    # 5) lib/clang/*/lib/ 안의 sanitizer 런타임 삭제, builtins·profile만 유지
+    # 5) 불필요 공유 라이브러리 삭제 (컴파일에 필요한 libclang-cpp.so만 유지)
+    #    liblldb — lldb 제거됨, libclang — C API (IDE용), libLTO — lld 자체 LTO 지원
+    #    libmlir_* — MLIR 런타임, LLVMPolly — 폴리헤드럴 옵티마이저, liblldbIntelFeatures
+    rm -f /opt/llvm/lib/liblldb*; \
+    rm -f /opt/llvm/lib/libclang.so*; \
+    rm -f /opt/llvm/lib/libLTO*; \
+    rm -f /opt/llvm/lib/LLVMPolly*; \
+    rm -f /opt/llvm/lib/libmlir_*; \
+    rm -f /opt/llvm/lib/liblldbIntelFeatures*; \
+    rm -f /opt/llvm/lib/libRemarks*; \
+    rm -rf /opt/llvm/lib/objects-RELEASE; \
+    rm -rf /opt/llvm/lib/libscanbuild /opt/llvm/lib/libear; \
+    rm -rf /opt/llvm/lib/x86_64-unknown-linux-gnu; \
+    \
+    # 6) lib/clang/*/lib/ 안의 sanitizer 런타임 삭제, builtins·profile만 유지
     find /opt/llvm/lib/clang -path '*/lib/linux/*.a' \
          ! -name '*builtins*' ! -name '*profile*' \
          -delete; \
     \
-    # 6) 불필요 바이너리 삭제 (화이트리스트 방식)
-    #    유지: 컴파일러, 코드품질, 링커, binutils, 커버리지, 지원 도구, 디버거
+    # 7) 불필요 바이너리 삭제 (화이트리스트 방식)
+    #    유지: 컴파일러, 코드품질, 링커, binutils, 커버리지, 지원 도구
     find /opt/llvm/bin -maxdepth 1 \( -type f -o -type l \) | while read -r f; do \
       base=$(basename "$f"); \
       case "$base" in \
@@ -54,7 +67,7 @@ RUN set -eux; \
       esac; \
     done; \
     \
-    # 7) 남은 바이너리·공유 라이브러리 strip (디버그 심볼 제거)
+    # 8) 남은 바이너리·공유 라이브러리 strip (디버그 심볼 제거)
     find /opt/llvm/bin -maxdepth 1 -type f -exec sh -c \
       'file "$1" | grep -qE "ELF.*executable|ELF.*shared" && strip --strip-unneeded "$1" 2>/dev/null || true' \
       _ {} \; ; \
