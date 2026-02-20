@@ -1,6 +1,74 @@
+# ============================================================
+# Stage 1: llvm-prep — LLVM 다운로드 및 불필요 파일 공격적 제거
+# ============================================================
+FROM almalinux:9.4 AS llvm-prep
+
+ARG LLVM_VERSION=20.1.6
+
+RUN set -eux; \
+    dnf install -y tar xz wget findutils binutils; \
+    dnf clean all; \
+    rm -rf /var/cache/dnf /var/cache/yum
+
+# LLVM 다운로드 → /opt/llvm 에 압축 해제
+RUN set -eux; \
+    cd /tmp; \
+    wget "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}/LLVM-${LLVM_VERSION}-Linux-X64.tar.xz"; \
+    tar xf "LLVM-${LLVM_VERSION}-Linux-X64.tar.xz"; \
+    mv "LLVM-${LLVM_VERSION}-Linux-X64" /opt/llvm; \
+    rm "LLVM-${LLVM_VERSION}-Linux-X64.tar.xz"
+
+# LLVM 공격적 정리 — 개발 헤더·cmake·문서·불필요 바이너리 제거
+RUN set -eux; \
+    # 1) 개발 헤더 전체 삭제 (clang 사용에는 불필요)
+    rm -rf /opt/llvm/include; \
+    \
+    # 2) 최상위 static 라이브러리 전체 삭제
+    rm -f /opt/llvm/lib/*.a; \
+    \
+    # 3) cmake 설정 파일 삭제
+    rm -rf /opt/llvm/lib/cmake; \
+    \
+    # 4) 문서·매뉴얼 삭제
+    rm -rf /opt/llvm/share/doc /opt/llvm/share/man; \
+    \
+    # 5) lib/clang/*/lib/ 안의 sanitizer 런타임 삭제, builtins·profile만 유지
+    find /opt/llvm/lib/clang -path '*/lib/linux/*.a' \
+         ! -name '*builtins*' ! -name '*profile*' \
+         -delete; \
+    \
+    # 6) 불필요 바이너리 삭제 (화이트리스트 방식)
+    #    유지: 컴파일러, 코드품질, 링커, binutils, 커버리지, 지원 도구, 디버거
+    find /opt/llvm/bin -maxdepth 1 \( -type f -o -type l \) | while read -r f; do \
+      base=$(basename "$f"); \
+      case "$base" in \
+        clang|clang++|clang-20|clang-cl|clang-cpp| \
+        clang-format|clang-tidy| \
+        lld|ld.lld|ld64.lld| \
+        llvm-ar|llvm-nm|llvm-ranlib|llvm-objdump|llvm-objcopy|llvm-strip|llvm-size|llvm-readelf| \
+        llvm-cov|llvm-profdata| \
+        llvm-symbolizer|llvm-config| \
+        lldb|lldb-server) \
+          : ;; \
+        *) rm -f "$f" ;; \
+      esac; \
+    done; \
+    \
+    # 7) 남은 바이너리·공유 라이브러리 strip (디버그 심볼 제거)
+    find /opt/llvm/bin -maxdepth 1 -type f -exec sh -c \
+      'file "$1" | grep -qE "ELF.*executable|ELF.*shared" && strip --strip-unneeded "$1" 2>/dev/null || true' \
+      _ {} \; ; \
+    find /opt/llvm/lib -maxdepth 1 -name '*.so*' -type f -exec sh -c \
+      'file "$1" | grep -q "ELF.*shared" && strip --strip-unneeded "$1" 2>/dev/null || true' \
+      _ {} \;
+
+# ============================================================
+# Stage 2: 최종 이미지
+# ============================================================
 FROM almalinux:9.4
 
-ENV PATH="/usr/lib64/ccache:${PATH}"
+ENV PATH="/usr/lib64/ccache:/opt/llvm/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/opt/llvm/lib"
 
 # 1) EPEL + CRB 활성화 + 패키지 설치
 RUN set -eux; \
@@ -19,31 +87,23 @@ RUN set -eux; \
            /usr/share/info/* /usr/share/locale/* \
            /var/log/dnf* /var/log/yum* /tmp/*
 
-# 3) LLVM 20 사전 빌드 바이너리 설치
-#    NOTE: glibc 호환 문제 발생 시 LLVM 소스 빌드로 전환 필요
-ARG LLVM_VERSION=20.1.6
+# 2) Stage 1에서 정리된 LLVM 복사
+COPY --from=llvm-prep /opt/llvm /opt/llvm
+
 RUN set -eux; \
-    cd /tmp; \
-    wget "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}/LLVM-${LLVM_VERSION}-Linux-X64.tar.xz"; \
-    tar xf "LLVM-${LLVM_VERSION}-Linux-X64.tar.xz"; \
-    cp -a LLVM-${LLVM_VERSION}-Linux-X64/* /usr/local/; \
-    rm -rf /tmp/LLVM-*; \
-    # LLVM 불필요 파일 정리 (static libs, docs, examples)
-    rm -rf /usr/local/share/doc /usr/local/share/man \
-           /usr/local/share/clang/clang-doc-default-stylesheet.css \
-           /usr/local/share/clang/clang-format-sublime.py \
-           /usr/local/lib/*.a; \
+    # 공유 라이브러리 경로 등록
+    echo "/opt/llvm/lib" > /etc/ld.so.conf.d/llvm.conf; \
     ldconfig; \
-    # 버전 접미사 심링크 생성 (clang → clang-20 등)
+    # 버전 접미사 심링크 생성 (clang-20 → clang 등)
     for bin in clang clang++ clang-format clang-tidy lldb lld; do \
-      [ -f "/usr/local/bin/$bin" ] && [ ! -e "/usr/local/bin/${bin}-20" ] \
-        && ln -s "$bin" "/usr/local/bin/${bin}-20" || true; \
+      [ -f "/opt/llvm/bin/$bin" ] && [ ! -e "/opt/llvm/bin/${bin}-20" ] \
+        && ln -s "$bin" "/opt/llvm/bin/${bin}-20" || true; \
     done; \
     # alternatives: gcc(80) / clang(100, 기본)
     alternatives --install /usr/bin/cc cc /usr/bin/gcc 80 \
       --slave /usr/bin/c++ c++ /usr/bin/g++; \
-    alternatives --install /usr/bin/cc cc /usr/local/bin/clang-20 100 \
-      --slave /usr/bin/c++ c++ /usr/local/bin/clang++-20; \
+    alternatives --install /usr/bin/cc cc /opt/llvm/bin/clang-20 100 \
+      --slave /usr/bin/c++ c++ /opt/llvm/bin/clang++-20; \
     # ccache 심링크
     mkdir -p /usr/lib64/ccache; \
     ln -sf /usr/bin/ccache /usr/lib64/ccache/clang; \
@@ -53,14 +113,14 @@ RUN set -eux; \
 
 WORKDIR /workspace
 
-# 4) 컴파일러 전환 스크립트 (gcc / clang)
+# 3) 컴파일러 전환 스크립트 (gcc / clang)
 RUN set -eux; \
     printf '%s\n' '#!/usr/bin/env bash' \
                   'set -euo pipefail' \
                   'if [[ $# -ne 1 ]]; then echo "usage: use-compiler <gcc|clang>"; exit 2; fi' \
                   'case "$1" in' \
                   '  gcc)   alternatives --set cc /usr/bin/gcc ;;' \
-                  '  clang) alternatives --set cc /usr/local/bin/clang-20 ;;' \
+                  '  clang) alternatives --set cc /opt/llvm/bin/clang-20 ;;' \
                   '  *)     echo "unsupported: $1 (use: gcc | clang)"; exit 2 ;;' \
                   'esac' \
                   'echo "cc  -> $(readlink -f "$(command -v cc)")"' \
@@ -68,7 +128,7 @@ RUN set -eux; \
       > /usr/local/bin/use-compiler; \
     chmod +x /usr/local/bin/use-compiler
 
-# 5) C/C++ 빌드 테스트 (clang + gcc 모두 검증)
+# 4) C/C++ 빌드 테스트 (clang + gcc 모두 검증)
 RUN set -eux; \
     printf '%s\n' '#include <stdio.h>' \
                   'int main(){printf("Hello C (%s)\\n", __VERSION__);}' > test.c; \
@@ -85,7 +145,7 @@ RUN set -eux; \
     use-compiler clang; \
     rm -f test.c testc test.cpp testcpp
 
-# 6) 버전 확인 (컴파일러 + coverage/leak 도구)
+# 5) 버전 확인 (컴파일러 + coverage/leak 도구)
 RUN set -eux; \
     python3 --version; \
     cc --version; \
