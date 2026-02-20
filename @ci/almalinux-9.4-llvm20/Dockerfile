@@ -29,8 +29,9 @@ RUN set -eux; \
     # 3) cmake 설정 파일 삭제
     rm -rf /opt/llvm/lib/cmake; \
     \
-    # 4) 문서·매뉴얼 삭제
-    rm -rf /opt/llvm/share/doc /opt/llvm/share/man; \
+    # 4) share/ 전체 삭제 (문서·매뉴얼·기타 모두)
+    rm -rf /opt/llvm/share; \
+    rm -rf /opt/llvm/libexec; \
     \
     # 5) lib/clang/*/lib/ 안의 sanitizer 런타임 삭제, builtins·profile만 유지
     find /opt/llvm/lib/clang -path '*/lib/linux/*.a' \
@@ -42,13 +43,12 @@ RUN set -eux; \
     find /opt/llvm/bin -maxdepth 1 \( -type f -o -type l \) | while read -r f; do \
       base=$(basename "$f"); \
       case "$base" in \
-        clang|clang++|clang-20|clang-cl|clang-cpp| \
+        clang|clang++|clang-20|clang-cpp| \
         clang-format|clang-tidy| \
-        lld|ld.lld|ld64.lld| \
+        lld|ld.lld| \
         llvm-ar|llvm-nm|llvm-ranlib|llvm-objdump|llvm-objcopy|llvm-strip|llvm-size|llvm-readelf| \
         llvm-cov|llvm-profdata| \
-        llvm-symbolizer|llvm-config| \
-        lldb|lldb-server) \
+        llvm-symbolizer|llvm-config) \
           : ;; \
         *) rm -f "$f" ;; \
       esac; \
@@ -74,18 +74,29 @@ ENV LD_LIBRARY_PATH="/opt/llvm/lib"
 RUN set -eux; \
     dnf install -y epel-release; \
     dnf config-manager --set-enabled crb; \
-    dnf install -y --allowerasing \
-      python3.12 python3.12-devel python3.12-pip \
+    dnf install -y --setopt=install_weak_deps=False \
+      python3.12 python3.12-pip \
       gcc gcc-c++ make cmake ninja-build pkgconfig ccache \
       patch file gdb valgrind \
-      git curl wget tar xz p7zip p7zip-plugins zip unzip; \
+      git curl tar xz zip unzip; \
     alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1; \
     # 정리: dnf 캐시 + docs/man/locale
     dnf clean all; \
     rm -rf /var/cache/dnf /var/cache/yum \
            /usr/share/doc/* /usr/share/man/* \
            /usr/share/info/* /usr/share/locale/* \
-           /var/log/dnf* /var/log/yum* /tmp/*
+           /var/log/dnf* /var/log/yum* /tmp/*; \
+    # Python 불필요 파일 정리
+    find /usr/lib64/python3.12 -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true; \
+    find /usr/lib64/python3.12 -type d -name test -exec rm -rf {} + 2>/dev/null || true; \
+    find /usr/lib64/python3.12 -type d -name tests -exec rm -rf {} + 2>/dev/null || true; \
+    rm -rf /usr/lib64/python3.12/idlelib \
+           /usr/lib64/python3.12/tkinter \
+           /usr/lib64/python3.12/turtle*.py \
+           /usr/lib64/python3.12/turtledemo; \
+    # 시스템 바이너리 strip
+    strip --strip-unneeded /usr/bin/gcc /usr/bin/g++ /usr/libexec/gcc/x86_64-redhat-linux/11/cc1 /usr/libexec/gcc/x86_64-redhat-linux/11/cc1plus 2>/dev/null || true; \
+    find /usr/lib/gcc /usr/lib64 -name '*.so' -exec strip --strip-unneeded {} + 2>/dev/null || true
 
 # 2) Stage 1에서 정리된 LLVM 복사
 COPY --from=llvm-prep /opt/llvm /opt/llvm
@@ -95,7 +106,7 @@ RUN set -eux; \
     echo "/opt/llvm/lib" > /etc/ld.so.conf.d/llvm.conf; \
     ldconfig; \
     # 버전 접미사 심링크 생성 (clang-20 → clang 등)
-    for bin in clang clang++ clang-format clang-tidy lldb lld; do \
+    for bin in clang clang++ clang-format clang-tidy lld; do \
       [ -f "/opt/llvm/bin/$bin" ] && [ ! -e "/opt/llvm/bin/${bin}-20" ] \
         && ln -s "$bin" "/opt/llvm/bin/${bin}-20" || true; \
     done; \
