@@ -195,3 +195,27 @@ RUN set -eux; \
     useradd -m -s /bin/zsh dev; \
     echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev; \
     chmod 440 /etc/sudoers.d/dev
+
+# 7) WSL1 PIE 호환 패치 스크립트 (필요시 수동 실행)
+#    WSL1 커널(4.4.0)이 PIE 바이너리를 직접 실행 못 하는 문제 우회
+#    사용법: sudo /root/patch_wsl.sh
+RUN printf '%s\n' \
+      '#!/bin/bash' \
+      'set -euo pipefail' \
+      'echo "=== WSL1 PIE binary patch ==="' \
+      'echo "LLVM PIE 바이너리를 동적 링커 래퍼로 교체합니다."' \
+      'mkdir -p /opt/llvm/libexec' \
+      'patched=0' \
+      'for f in /opt/llvm/bin/*; do' \
+      '  [ -f "$f" ] && [ ! -L "$f" ] || continue' \
+      '  head -c4 "$f" | grep -q ELF || continue' \
+      '  base=$(basename "$f")' \
+      '  mv "$f" "/opt/llvm/libexec/$base"' \
+      '  printf "#!/bin/sh\nexec /lib64/ld-linux-x86-64.so.2 /opt/llvm/libexec/%s \"\$@\"\n" "$base" > "$f"' \
+      '  chmod +x "$f"' \
+      '  patched=$((patched+1))' \
+      '  echo "  patched: $base"' \
+      'done' \
+      'echo "완료: ${patched}개 바이너리 패치됨"' \
+    > /root/patch_wsl.sh; \
+    chmod +x /root/patch_wsl.sh
