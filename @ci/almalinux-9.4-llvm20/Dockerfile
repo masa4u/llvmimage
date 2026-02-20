@@ -209,6 +209,31 @@ RUN cat > /root/patch_wsl.sh << 'PATCH_EOF'
 #!/bin/bash
 set -euo pipefail
 echo "=== WSL1 PIE binary patch ==="
+
+# 기존 패치 롤백 (재실행 안전)
+if [ -d /opt/llvm/libexec ]; then
+  echo "기존 패치 감지 — 롤백 중..."
+  # libexec/ 의 실제 ELF 바이너리를 bin/ 으로 복원
+  for f in /opt/llvm/libexec/*; do
+    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    head -c4 "$f" | grep -q ELF || continue
+    mv "$f" "/opt/llvm/bin/$(basename "$f")"
+  done
+  rm -rf /opt/llvm/libexec
+  # bin/ 에서 래퍼 스크립트(비-ELF)를 삭제 (심링크 정리)
+  for f in /opt/llvm/bin/*; do
+    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    head -c4 "$f" | grep -q ELF && continue
+    rm -f "$f"
+  done
+  # 심링크 재생성 (Dockerfile 원래 구조)
+  cd /opt/llvm/bin
+  for bin in clang clang++ clang-format clang-tidy lld; do
+    [ -e "$bin" ] && [ ! -e "${bin}-20" ] && ln -s "$bin" "${bin}-20" || true
+  done
+  echo "  롤백 완료"
+fi
+
 echo "LLVM PIE 바이너리를 동적 링커 래퍼로 교체합니다."
 mkdir -p /opt/llvm/libexec
 patched=0
