@@ -74,7 +74,7 @@ ENV LD_LIBRARY_PATH="/opt/llvm/lib"
 RUN set -eux; \
     dnf install -y epel-release; \
     dnf config-manager --set-enabled crb; \
-    dnf install -y --setopt=install_weak_deps=False \
+    dnf install -y --allowerasing --setopt=install_weak_deps=False \
       python3.12 python3.12-pip \
       gcc gcc-c++ make cmake ninja-build pkgconfig ccache \
       patch file gdb valgrind \
